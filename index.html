@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -421,13 +421,13 @@
   <div class="logo">ch<span>://</span>schema</div>
   <div class="divider"></div>
 
-  <button class="tb-btn" id="btn-config" onclick="openConfig()">⚙ Conexión</button>
+  <button class="tb-btn" id="btn-config" onclick="openConfig()">⚙ Connection</button>
 
   <div class="divider"></div>
 
-  <span class="db-label">Base de datos</span>
+  <span class="db-label">Database</span>
   <select id="db-select" onchange="onDbChange()">
-    <option value="">— Cargando… —</option>
+    <option value="">— Loading… —</option>
   </select>
 
   <div class="divider"></div>
@@ -436,13 +436,13 @@
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
     </svg>
-    <input id="search" type="text" placeholder="Buscar tabla o campo…" oninput="filterTables(this.value)">
+    <input id="search" type="text" placeholder="Search table or field…" oninput="filterTables(this.value)">
   </div>
 
   <button class="tb-btn" onclick="doAutoLayout()">Auto layout</button>
-  <button class="tb-btn" onclick="resetView()">Reset vista</button>
-  <button class="tb-btn" id="btn-download-ddl" onclick="downloadDDL()" title="Descargar todos los CREATE TABLE de la BD seleccionada" disabled>⬇ DDL</button>
-  <button class="tb-btn primary" onclick="reloadSchema()">↻ Recargar</button>
+  <button class="tb-btn" onclick="resetView()">Reset view</button>
+  <button class="tb-btn" id="btn-download-ddl" onclick="downloadDDL()" title="Download all CREATE TABLE statements for the selected database" disabled>⬇ DDL</button>
+  <button class="tb-btn primary" onclick="reloadSchema()">↻ Reload</button>
 
   <div class="tb-stats">
     <span class="stat-chip" id="st-tables"></span>
@@ -455,7 +455,7 @@
   <div id="canvas"></div>
   <div id="overlay">
     <div class="spinner"></div>
-    <div class="overlay-text">Iniciando…</div>
+    <div class="overlay-text">Starting…</div>
   </div>
   <div id="zoom-ctrl">
     <button class="zoom-btn" onclick="zoom(1.2)" title="Zoom in">+</button>
@@ -466,7 +466,7 @@
 
 <!-- ── Status bar ── -->
 <div id="statusbar">
-  <div class="s-item"><span class="dot loading" id="conn-dot"></span><span id="conn-text">Conectando…</span></div>
+  <div class="s-item"><span class="dot loading" id="conn-dot"></span><span id="conn-text">Connecting…</span></div>
   <div class="s-item" id="fetch-time"></div>
   <div class="s-item" id="ch-host"></div>
 </div>
@@ -475,7 +475,7 @@
 <div id="config-modal" class="modal-backdrop">
   <div class="modal-box">
     <div class="modal-header">
-      <h3>Configuración de conexión</h3>
+      <h3>Connection settings</h3>
       <button class="modal-close" onclick="closeConfig()">×</button>
     </div>
     <div class="config-body">
@@ -485,25 +485,25 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Puerto</label>
+          <label>Port</label>
           <input id="cfg-port" type="number" placeholder="8123" min="1" max="65535">
         </div>
         <div class="form-group">
-          <label>Usuario</label>
+          <label>User</label>
           <input id="cfg-user" type="text" placeholder="default" autocomplete="off" spellcheck="false">
         </div>
       </div>
       <div class="form-group">
-        <label>Contraseña</label>
-        <input id="cfg-pass" type="password" placeholder="(vacío si no tiene)" autocomplete="current-password">
+        <label>Password</label>
+        <input id="cfg-pass" type="password" placeholder="(empty if none)" autocomplete="current-password">
       </div>
     </div>
     <div class="config-footer">
-      <button class="tb-btn" onclick="testConnection()">Probar</button>
+      <button class="tb-btn" onclick="testConnection()">Test</button>
       <span class="test-result" id="test-result"></span>
       <div class="spacer"></div>
-      <button class="tb-btn" onclick="restoreDefaults()">Restaurar defaults</button>
-      <button class="tb-btn primary" onclick="applyConfig()">Aplicar</button>
+      <button class="tb-btn" onclick="restoreDefaults()">Restore defaults</button>
+      <button class="tb-btn primary" onclick="applyConfig()">Apply</button>
     </div>
   </div>
 </div>
@@ -521,33 +521,33 @@
 
 <!-- ── Color picker popup ── -->
 <div id="color-picker-popup">
-  <div class="cp-title">Color de tarjeta</div>
+  <div class="cp-title">Card color</div>
   <div class="cp-grid" id="cp-grid"></div>
 </div>
 
 <script>
 // ── Pastel colors ─────────────────────────────────────────────────────────────
 const PASTEL_COLORS = [
-  { name: 'Sin color',    value: '' },
-  { name: 'Rosa',         value: '#ffc2d4' },
-  { name: 'Salmón',       value: '#ffb3a7' },
-  { name: 'Melocotón',    value: '#ffd4a8' },
-  { name: 'Albaricoque',  value: '#ffc87a' },
-  { name: 'Limón',        value: '#fff0a0' },
-  { name: 'Vainilla',     value: '#faeebb' },
-  { name: 'Crema',        value: '#f8e8c0' },
-  { name: 'Pistacho',     value: '#c2e8c8' },
-  { name: 'Menta',        value: '#b7eecf' },
-  { name: 'Salvia',       value: '#a8d8b0' },
-  { name: 'Aguamarina',   value: '#90e0e8' },
-  { name: 'Cielo',        value: '#a8d8f8' },
-  { name: 'Celeste',      value: '#b8d8f8' },
-  { name: 'Azul pizarra', value: '#b8c8f8' },
-  { name: 'Lavanda',      value: '#d0b8fc' },
-  { name: 'Lila',         value: '#e8b8f8' },
-  { name: 'Malva',        value: '#f0b8d8' },
-  { name: 'Niebla',       value: '#c8d0e8' },
-  { name: 'Perla',        value: '#e8e0d8' },
+  { name: 'No color',    value: '' },
+  { name: 'Pink',        value: '#ffc2d4' },
+  { name: 'Salmon',      value: '#ffb3a7' },
+  { name: 'Peach',       value: '#ffd4a8' },
+  { name: 'Apricot',     value: '#ffc87a' },
+  { name: 'Lemon',       value: '#fff0a0' },
+  { name: 'Vanilla',     value: '#faeebb' },
+  { name: 'Cream',       value: '#f8e8c0' },
+  { name: 'Pistachio',   value: '#c2e8c8' },
+  { name: 'Mint',        value: '#b7eecf' },
+  { name: 'Sage',        value: '#a8d8b0' },
+  { name: 'Aquamarine',  value: '#90e0e8' },
+  { name: 'Sky',         value: '#a8d8f8' },
+  { name: 'Baby blue',   value: '#b8d8f8' },
+  { name: 'Slate blue',  value: '#b8c8f8' },
+  { name: 'Lavender',    value: '#d0b8fc' },
+  { name: 'Lilac',       value: '#e8b8f8' },
+  { name: 'Mauve',       value: '#f0b8d8' },
+  { name: 'Mist',        value: '#c8d0e8' },
+  { name: 'Pearl',       value: '#e8e0d8' },
 ];
 
 // ── DOM refs (declared first — used by top-level event listeners below) ───────
@@ -567,7 +567,7 @@ let vt             = { x: 0, y: 0, s: 1 };
 let isPanning      = false;
 let panStart       = {};
 let dragState      = null;
-let colorPickerCard = null; // card el currently targeted by color picker
+let colorPickerCard = null;
 
 // ── LocalStorage helpers ──────────────────────────────────────────────────────
 function loadConnConfig() {
@@ -628,11 +628,11 @@ async function initApp() {
 
 // ── Databases ─────────────────────────────────────────────────────────────────
 async function loadDatabases() {
-  showLoading('Cargando bases de datos…');
+  showLoading('Loading databases…');
   try {
     const res  = await fetch(buildUrl('/api/databases'));
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error desconocido');
+    if (!res.ok) throw new Error(data.error || 'Unknown error');
 
     populateDbSelect(data.databases);
     const savedDb = loadSavedDb();
@@ -648,7 +648,7 @@ async function loadDatabases() {
     if (db) {
       await loadSchema(db);
     } else {
-      showEmpty('Selecciona una base de datos para ver el esquema.');
+      showEmpty('Select a database to view the schema.');
     }
   } catch (err) {
     showError(err.message);
@@ -667,7 +667,7 @@ function populateDbSelect(dbs) {
   });
   if (dbs.length === 0) {
     const opt = document.createElement('option');
-    opt.value = ''; opt.textContent = '— Sin bases de datos —';
+    opt.value = ''; opt.textContent = '— No databases —';
     select.appendChild(opt);
   }
 }
@@ -681,12 +681,12 @@ async function onDbChange() {
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 async function loadSchema(database) {
-  showLoading(`Cargando esquema de ${database}…`);
+  showLoading(`Loading schema for ${database}…`);
   const t0 = Date.now();
   try {
     const res  = await fetch(buildUrl('/api/schema', { database }));
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error desconocido');
+    if (!res.ok) throw new Error(data.error || 'Unknown error');
 
     const ms = Date.now() - t0;
     allTables = data.tables;
@@ -710,9 +710,9 @@ function renderAll(data) {
   canvas.innerHTML = '';
   cardEls = {};
 
-  document.getElementById('st-tables').innerHTML = `<b>${data.tables.length}</b> tabla${data.tables.length !== 1 ? 's' : ''}`;
+  document.getElementById('st-tables').innerHTML = `<b>${data.tables.length}</b> table${data.tables.length !== 1 ? 's' : ''}`;
   const totalFields = data.tables.reduce((a, t) => a + t.fields.length, 0);
-  document.getElementById('st-fields').innerHTML = `<b>${totalFields}</b> campos`;
+  document.getElementById('st-fields').innerHTML = `<b>${totalFields}</b> field${totalFields !== 1 ? 's' : ''}`;
 
   const savedLayout = loadLayout();
   const cols        = Math.max(1, Math.min(5, Math.ceil(Math.sqrt(data.tables.length))));
@@ -762,7 +762,7 @@ function renderCard(tbl, x, y, color) {
       </div>
       <div class="card-badges">
         <span class="engine-badge ${engineClass}">${esc(engineLabel)}</span>
-        <span class="color-dot-btn" title="Asignar color" data-card-key="${esc(tbl.db + '.' + tbl.name)}"></span>
+        <span class="color-dot-btn" title="Assign color" data-card-key="${esc(tbl.db + '.' + tbl.name)}"></span>
       </div>
     </div>
     ${metaParts.length ? `<div class="card-meta">${esc(metaParts.join(' · '))}</div>` : ''}
@@ -787,7 +787,7 @@ function renderCard(tbl, x, y, color) {
   fieldList.className = 'field-list';
 
   if (tbl.fields.length === 0) {
-    fieldList.innerHTML = `<div class="field-row" style="color:var(--text3)">Sin columnas</div>`;
+    fieldList.innerHTML = `<div class="field-row" style="color:var(--text3)">No columns</div>`;
   } else {
     tbl.fields.forEach(f => {
       const row = document.createElement('div');
@@ -814,8 +814,8 @@ function renderCard(tbl, x, y, color) {
   const footer = document.createElement('div');
   footer.className = 'card-footer';
   footer.innerHTML = `
-    <span>${tbl.fields.length} campo${tbl.fields.length !== 1 ? 's' : ''}</span>
-    <span class="ddl-link" title="Ver DDL" onclick="openDDL(getTbl('${esc(tbl.db)}','${esc(tbl.name)}'))">DDL ↗</span>
+    <span>${tbl.fields.length} field${tbl.fields.length !== 1 ? 's' : ''}</span>
+    <span class="ddl-link" title="View DDL" onclick="openDDL(getTbl('${esc(tbl.db)}','${esc(tbl.name)}'))">DDL ↗</span>
   `;
   card.appendChild(footer);
 
@@ -1113,7 +1113,7 @@ function getFormConfig() {
 
 async function testConnection() {
   const resultEl = document.getElementById('test-result');
-  resultEl.textContent = 'Probando…';
+  resultEl.textContent = 'Testing…';
   resultEl.className   = 'test-result';
   const cfg = getFormConfig();
   try {
@@ -1153,7 +1153,7 @@ document.getElementById('config-modal').addEventListener('click', e => {
 // ── DDL modal ─────────────────────────────────────────────────────────────────
 function _openDDL(tbl) {
   document.getElementById('ddl-title').textContent   = tbl.db + '.' + tbl.name;
-  document.getElementById('ddl-content').innerHTML   = highlightSQL(tbl.ddl || '-- DDL no disponible');
+  document.getElementById('ddl-content').innerHTML   = highlightSQL(tbl.ddl || '-- DDL not available');
   document.getElementById('ddl-modal').classList.add('open');
 }
 function closeDDL() { document.getElementById('ddl-modal').classList.remove('open'); }
@@ -1217,7 +1217,7 @@ function downloadDDL() {
   const sep = '-'.repeat(80);
   const chunks = allTables.map(t => {
     const header = `-- ${sep}\n-- ${t.db}.${t.name}  [${t.engine || '?'}]\n-- ${sep}`;
-    return header + '\n\n' + (t.ddl || `-- DDL no disponible para ${t.name}`) + ';';
+    return header + '\n\n' + (t.ddl || `-- DDL not available for ${t.name}`) + ';';
   });
 
   const header =
@@ -1247,7 +1247,7 @@ function setConn(ok, db, ms) {
   const dot = document.getElementById('conn-dot');
   const txt = document.getElementById('conn-text');
   dot.className   = 'dot' + (ok ? '' : ' err');
-  txt.textContent = ok ? 'Conectado' : 'Error de conexión';
+  txt.textContent = ok ? 'Connected' : 'Connection error';
   if (ok) {
     document.getElementById('fetch-time').textContent = ms ? `${ms}ms` : '';
     document.getElementById('ch-host').textContent    = db || '';
@@ -1269,11 +1269,11 @@ function showError(msg) {
   overlay.style.display = 'flex';
   overlay.innerHTML = `
     <div class="err-box">
-      <h3>No se pudo conectar a ClickHouse</h3>
+      <h3>Could not connect to ClickHouse</h3>
       <p>${esc(msg)}</p>
-      <code>Comprueba la conexión o ajusta los parámetros en ⚙ Conexión.</code>
+      <code>Check the connection or adjust the parameters in ⚙ Connection.</code>
       <br>
-      <button class="tb-btn primary" onclick="reloadSchema()" style="margin-top:12px">Reintentar</button>
+      <button class="tb-btn primary" onclick="reloadSchema()" style="margin-top:12px">Retry</button>
     </div>
   `;
 }
@@ -1283,7 +1283,7 @@ function showEmpty(msg) {
   overlay.style.display = 'flex';
   overlay.innerHTML = `
     <div class="empty-state">
-      <h3>Base de datos no seleccionada</h3>
+      <h3>No database selected</h3>
       <p>${esc(msg)}</p>
     </div>
   `;

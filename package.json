@@ -1,7 +1,7 @@
 {
   "name": "clickhouse-schema-viz",
   "version": "1.0.0",
-  "description": "ClickHouse schema visualizer — sin dependencias externas",
+  "description": "ClickHouse schema visualizer — no external dependencies",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

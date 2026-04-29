@@ -1,64 +1,64 @@
 # ClickHouse Schema Visualizer
 
-Visualizador de esquemas ClickHouse. **Sin dependencias npm**, solo Node.js nativo.
+ClickHouse schema visualizer. **No npm dependencies**, pure Node.js.
 
-## Requisitos
+## Requirements
 
-- Node.js 18+ (usa el HTTP client nativo)
-- ClickHouse corriendo con la interfaz HTTP habilitada (puerto 8123 por defecto)
+- Node.js 18+ (uses the native HTTP client)
+- ClickHouse running with the HTTP interface enabled (port 8123 by default)
 
-## Instalación
+## Installation
 
 ```bash
-# 1. Copia los archivos a tu VM (o clona el repo)
-scp -r clickhouse-viz/ tu-vm:/opt/clickhouse-viz/
+# 1. Copy the files to your VM (or clone the repo)
+scp -r clickhouse-viz/ your-vm:/opt/clickhouse-viz/
 
-# 2. Entra a la carpeta
+# 2. Enter the directory
 cd /opt/clickhouse-viz
 
-# 3. Arranca (con config por defecto: localhost:8123, user=default, sin password)
+# 3. Start (with default config: localhost:8123, user=default, no password)
 node server.js
 ```
 
-Abre `http://localhost:3000` en tu navegador.
+Open `http://localhost:3000` in your browser.
 
 ---
 
-## Configuración
+## Configuration
 
-Todo por variables de entorno, sin tocar código:
+Everything via environment variables, no code changes needed:
 
-| Variable              | Default       | Descripción                              |
+| Variable              | Default       | Description                              |
 |-----------------------|---------------|------------------------------------------|
-| `CLICKHOUSE_HOST`     | `localhost`   | Host de ClickHouse                       |
-| `CLICKHOUSE_PORT`     | `8123`        | Puerto HTTP de ClickHouse                |
-| `CLICKHOUSE_USER`     | `default`     | Usuario                                  |
-| `CLICKHOUSE_PASSWORD` | `` (vacío)    | Contraseña                               |
-| `CLICKHOUSE_DATABASE` | `` (vacío)    | Base de datos concreta (vacío = todas)   |
-| `CLICKHOUSE_HTTPS`    | `false`       | Usar HTTPS en vez de HTTP                |
-| `PORT`                | `3000`        | Puerto del servidor web                  |
+| `CLICKHOUSE_HOST`     | `localhost`   | ClickHouse host                          |
+| `CLICKHOUSE_PORT`     | `8123`        | ClickHouse HTTP port                     |
+| `CLICKHOUSE_USER`     | `default`     | User                                     |
+| `CLICKHOUSE_PASSWORD` | `` (empty)    | Password                                 |
+| `CLICKHOUSE_DATABASE` | `` (empty)    | Specific database (empty = all)          |
+| `CLICKHOUSE_HTTPS`    | `false`       | Use HTTPS instead of HTTP                |
+| `PORT`                | `3000`        | Web server port                          |
 
-### Ejemplos
+### Examples
 
 ```bash
-# Con contraseña
-CLICKHOUSE_PASSWORD=mi_password node server.js
+# With password
+CLICKHOUSE_PASSWORD=my_password node server.js
 
-# Solo una base de datos
-CLICKHOUSE_DATABASE=mi_bbdd node server.js
+# Single database
+CLICKHOUSE_DATABASE=my_db node server.js
 
-# ClickHouse en otra máquina
+# ClickHouse on another machine
 CLICKHOUSE_HOST=192.168.1.50 CLICKHOUSE_PORT=8123 node server.js
 
-# Todo junto
+# All together
 CLICKHOUSE_HOST=192.168.1.50 CLICKHOUSE_USER=admin CLICKHOUSE_PASSWORD=pass PORT=8080 node server.js
 ```
 
 ---
 
-## Ejecutar como servicio (systemd)
+## Run as a service (systemd)
 
-Para que arranque automáticamente con la VM:
+To start automatically with the VM:
 
 ```bash
 sudo nano /etc/systemd/system/ch-viz.service
@@ -95,34 +95,34 @@ sudo systemctl status ch-viz
 
 ---
 
-## Funcionalidades
+## Features
 
-- **Carga automática** del esquema al arrancar
-- **Botón ↻ Recargar** para refrescar sin reiniciar el servidor
-- **Filtro por base de datos** (pills en la toolbar)
-- **Búsqueda** por nombre de tabla, campo o tipo
-- **Drag & drop** de las tarjetas
-- **Zoom** con rueda del ratón o botones +/−
-- **Fit all** para ajustar todas las tablas en pantalla (tecla `0`)
-- **Ver DDL** completo haciendo doble click en la cabecera o en "DDL ↗"
-- **Columnas clave**: punto naranja = PRIMARY/SORTING KEY
+- **Auto-load** schema on startup
+- **↻ Reload button** to refresh without restarting the server
+- **Database filter** (dropdown in the toolbar)
+- **Search** by table name, field, or type
+- **Drag & drop** table cards
+- **Zoom** with mouse wheel or +/− buttons
+- **Fit all** to fit all tables on screen (key `0`)
+- **View DDL** by double-clicking the card header or clicking "DDL ↗"
+- **Key columns**: orange dot = PRIMARY/SORTING KEY
 
-### Atajos de teclado
+### Keyboard shortcuts
 
-| Tecla | Acción            |
+| Key   | Action            |
 |-------|-------------------|
 | `+/-` | Zoom in/out       |
 | `0`   | Fit all           |
-| `f`   | Foco en búsqueda  |
-| `Esc` | Cerrar modal DDL  |
+| `f`   | Focus search      |
+| `Esc` | Close DDL modal   |
 
 ---
 
 ## API endpoints
 
-El servidor expone también:
+The server also exposes:
 
-- `GET /api/schema` — JSON con todas las tablas y columnas
-- `GET /api/health` — Estado de la conexión a ClickHouse
+- `GET /api/schema` — JSON with all tables and columns
+- `GET /api/health` — ClickHouse connection status
 
-Útil si quieres integrarlo con otras herramientas.
+Useful if you want to integrate it with other tools.

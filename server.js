@@ -11,7 +11,7 @@ const CONFIG = {
   port:       parseInt(process.env.CLICKHOUSE_PORT || '8123'),
   user:       process.env.CLICKHOUSE_USER     || 'default',
   password:   process.env.CLICKHOUSE_PASSWORD || '',
-  serverPort: parseInt(process.env.PORT       || '93721'),
+  serverPort: parseInt(process.env.PORT       || '63721'),
   useHttps:   process.env.CLICKHOUSE_HTTPS    === 'true',
 };
 

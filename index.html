@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickHouse Schema Visualizer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #f4f5f9;
+    --bg2:          #ffffff;
+    --bg3:          #eef0f6;
+    --bg4:          #e6e8f0;
+    --border:       rgba(0,0,0,0.09);
+    --border2:      rgba(0,0,0,0.16);
+    --text:         #1a1d2e;
+    --text2:        #5a6180;
+    --text3:        #9498b2;
+    --accent:       #2563eb;
+    --accent-dim:   rgba(37,99,235,0.10);
+    --accent-bdr:   rgba(37,99,235,0.35);
+    --green:        #10b981;
+    --amber:        #d97706;
+    --purple:       #7c3aed;
+    --red:          #dc2626;
+    --shadow:       0 1px 3px rgba(0,0,0,0.07), 0 2px 10px rgba(0,0,0,0.05);
+    --shadow-lg:    0 4px 20px rgba(0,0,0,0.10), 0 8px 40px rgba(0,0,0,0.07);
+    --mono:         'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+    --sans:         -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --radius:       8px;
+  }
+
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+  /* ── Toolbar ── */
+  #toolbar {
+    height: 50px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    position: relative;
+    z-index: 10;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .logo span { color: var(--text3); font-weight: 400; }
+
+  .divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
+
+  .tb-btn {
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+    flex-shrink: 0;
+  }
+  .tb-btn:hover { background: var(--bg3); border-color: var(--border2); box-shadow: var(--shadow); }
+  .tb-btn:disabled { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+  .tb-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .tb-btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+  /* ── DB Select ── */
+  .db-label {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  #db-select {
+    height: 32px;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239498b2' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    transition: border-color 0.12s, box-shadow 0.12s;
+    max-width: 220px;
+    min-width: 160px;
+    flex-shrink: 0;
+  }
+  #db-select:hover { border-color: var(--accent-bdr); }
+  #db-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  #db-select option { font-family: var(--mono); }
+
+  /* ── Search ── */
+  #search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0 10px;
+    height: 32px;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  #search-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  #search-wrap svg { opacity: 0.35; flex-shrink: 0; }
+  #search {
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 12px; font-family: var(--sans); width: 140px;
+  }
+  #search::placeholder { color: var(--text3); }
+
+  .tb-stats { margin-left: auto; display: flex; gap: 14px; align-items: center; flex-shrink: 0; }
+  .stat-chip { font-size: 11px; color: var(--text2); font-family: var(--mono); }
+  .stat-chip b { color: var(--text); font-weight: 600; }
+
+  /* ── Status bar ── */
+  #statusbar {
+    height: 26px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 0 14px;
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+  #statusbar .s-item { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; flex-shrink: 0; }
+  .dot.err     { background: var(--red); }
+  .dot.loading { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @keyframes spin  { to { transform: rotate(360deg); } }
+
+  /* ── Canvas ── */
+  #canvas-wrap {
+    position: fixed;
+    top: 50px; left: 0; right: 0; bottom: 26px;
+    overflow: hidden;
+    cursor: grab;
+    background-color: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.09) 1px, transparent 0);
+    background-size: 28px 28px;
+  }
+  #canvas-wrap.panning { cursor: grabbing; }
+  #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+  /* ── Overlay (loading / error) ── */
+  #overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; z-index: 5;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .overlay-text { font-size: 13px; color: var(--text2); font-family: var(--mono); }
+  .err-box {
+    background: var(--bg2);
+    border: 1px solid rgba(220,38,38,0.25);
+    border-radius: 12px;
+    padding: 24px 32px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+  }
+  .err-box h3 { color: var(--red); font-size: 14px; margin-bottom: 8px; }
+  .err-box p  { font-size: 12px; color: var(--text2); line-height: 1.7; font-family: var(--mono); }
+  .err-box code {
+    color: var(--amber); font-size: 11px; display: block; margin-top: 12px;
+    text-align: left; background: var(--bg3); padding: 10px 14px; border-radius: 6px;
+  }
+  .empty-state {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 40px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .empty-state h3 { font-size: 15px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p  { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+
+  /* ── Table cards ── */
+  .table-card {
+    position: absolute;
+    width: 268px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    user-select: none;
+    box-shadow: var(--shadow);
+  }
+  .table-card:hover   { border-color: var(--border2); box-shadow: var(--shadow-lg); }
+  .table-card.dragging { border-color: var(--accent-bdr); box-shadow: 0 8px 40px rgba(37,99,235,0.18); z-index: 999; }
+  .table-card.faded   { opacity: 0.15; pointer-events: none; }
+
+  .card-header {
+    padding: 10px 10px 8px 12px;
+    cursor: move;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    transition: background 0.15s;
+  }
+  .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
+  .card-db   { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-bottom: 2px; }
+  .card-name { font-size: 13px; font-weight: 600; color: var(--text); font-family: var(--mono); word-break: break-all; flex: 1; }
+  .card-badges { display: flex; align-items: center; gap: 5px; flex-shrink: 0; margin-top: 2px; }
+  .card-meta { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 5px; }
+
+  .engine-badge {
+    font-size: 9px; font-family: var(--mono); padding: 2px 6px;
+    border-radius: 4px; flex-shrink: 0; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .e-mt   { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .e-dist { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+  .e-log  { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+  .e-view { background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+  .e-mem  { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  .e-null { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
+  .e-other{ background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+
+  /* Color dot button on card */
+  .color-dot-btn {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border2);
+    cursor: pointer;
+    flex-shrink: 0;
+    background: var(--bg4);
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+    position: relative;
+  }
+  .color-dot-btn:hover { transform: scale(1.2); border-color: rgba(0,0,0,0.3); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+
+  .field-list { padding: 4px 0; max-height: 260px; overflow-y: auto; }
+  .field-list::-webkit-scrollbar { width: 4px; }
+  .field-list::-webkit-scrollbar-track { background: transparent; }
+  .field-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .field-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 12px; font-size: 11px; min-height: 22px;
+  }
+  .field-row:hover { background: var(--bg3); }
+
+  .fk-icon { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .fk-pk   { background: var(--amber); }
+  .fk-sort { background: transparent; border: 1.5px solid var(--amber); }
+  .fk-none { background: transparent; }
+
+  .f-name { font-family: var(--mono); color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f-null { font-size: 9px; color: var(--text3); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; flex-shrink: 0; }
+  .f-type { font-family: var(--mono); color: var(--text3); font-size: 10px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+
+  .card-footer {
+    padding: 5px 12px; border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--text3); font-family: var(--mono);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .ddl-link { cursor: pointer; color: var(--text3); transition: color 0.12s; }
+  .ddl-link:hover { color: var(--accent); }
+
+  /* ── Zoom controls ── */
+  #zoom-ctrl {
+    position: absolute; bottom: 16px; right: 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow); transition: background 0.12s;
+  }
+  .zoom-btn:hover { background: var(--bg3); }
+
+  /* ── Color picker popup ── */
+  #color-picker-popup {
+    position: fixed;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: var(--shadow-lg);
+    z-index: 3000;
+    display: none;
+  }
+  .cp-title {
+    font-size: 10px; font-family: var(--mono); color: var(--text3);
+    margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .cp-grid {
+    display: grid; grid-template-columns: repeat(5, 26px); gap: 5px;
+  }
+  .cp-swatch {
+    width: 26px; height: 26px; border-radius: 6px; cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.1s, border-color 0.1s, box-shadow 0.1s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text3);
+  }
+  .cp-swatch:hover { transform: scale(1.18); border-color: rgba(0,0,0,0.2); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .cp-swatch.active { border-color: rgba(0,0,0,0.45); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+  .cp-swatch.cp-none { background: var(--bg3); color: var(--text3); font-size: 14px; }
+
+  /* ── Modals base ── */
+  .modal-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(15,20,40,0.35);
+    z-index: 1000;
+    align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(2px);
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-box {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    max-width: 100%;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h3 { font-size: 14px; font-weight: 600; color: var(--text); }
+  .modal-close {
+    background: none; border: none; color: var(--text3); font-size: 22px;
+    cursor: pointer; line-height: 1; padding: 0 2px;
+    transition: color 0.12s;
+  }
+  .modal-close:hover { color: var(--text); }
+
+  /* ── Config modal ── */
+  #config-modal .modal-box { width: 460px; }
+  .config-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .form-row { display: flex; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+  .form-group label { font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.3px; text-transform: uppercase; }
+  .form-group input {
+    height: 34px; padding: 0 10px;
+    border: 1px solid var(--border2); border-radius: var(--radius);
+    background: var(--bg3); color: var(--text);
+    font-size: 13px; font-family: var(--mono); outline: none;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); background: var(--bg2); }
+  .config-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .config-footer .spacer { flex: 1; }
+  .test-result { font-size: 11px; font-family: var(--mono); transition: color 0.2s; }
+  .test-result.ok  { color: var(--green); }
+  .test-result.err { color: var(--red); }
+
+  /* ── DDL modal ── */
+  #ddl-modal .modal-box { width: 720px; max-height: 80vh; }
+  .ddl-pre {
+    overflow-y: auto; padding: 18px 20px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.75;
+    color: var(--text2); white-space: pre-wrap; word-break: break-all;
+  }
+  .ddl-pre::-webkit-scrollbar { width: 4px; }
+  .ddl-pre::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* SQL syntax highlight */
+  .kw { color: #1d4ed8; font-weight: 600; }
+  .tp { color: #059669; }
+  .fn { color: #d97706; }
+  .cm { color: var(--text3); font-style: italic; }
+  .st { color: #dc2626; }
+</style>
+</head>
+<body>
+
+<!-- ── Toolbar ── -->
+<div id="toolbar">
+  <div class="logo">ch<span>://</span>schema</div>
+  <div class="divider"></div>
+
+  <button class="tb-btn" id="btn-config" onclick="openConfig()">⚙ Conexión</button>
+
+  <div class="divider"></div>
+
+  <span class="db-label">Base de datos</span>
+  <select id="db-select" onchange="onDbChange()">
+    <option value="">— Cargando… —</option>
+  </select>
+
+  <div class="divider"></div>
+
+  <div id="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input id="search" type="text" placeholder="Buscar tabla o campo…" oninput="filterTables(this.value)">
+  </div>
+
+  <button class="tb-btn" onclick="doAutoLayout()">Auto layout</button>
+  <button class="tb-btn" onclick="resetView()">Reset vista</button>
+  <button class="tb-btn" id="btn-download-ddl" onclick="downloadDDL()" title="Descargar todos los CREATE TABLE de la BD seleccionada" disabled>⬇ DDL</button>
+  <button class="tb-btn primary" onclick="reloadSchema()">↻ Recargar</button>
+
+  <div class="tb-stats">
+    <span class="stat-chip" id="st-tables"></span>
+    <span class="stat-chip" id="st-fields"></span>
+  </div>
+</div>
+
+<!-- ── Canvas ── -->
+<div id="canvas-wrap">
+  <div id="canvas"></div>
+  <div id="overlay">
+    <div class="spinner"></div>
+    <div class="overlay-text">Iniciando…</div>
+  </div>
+  <div id="zoom-ctrl">
+    <button class="zoom-btn" onclick="zoom(1.2)" title="Zoom in">+</button>
+    <button class="zoom-btn" onclick="zoom(0.83)" title="Zoom out">−</button>
+    <button class="zoom-btn" onclick="fitAll()" title="Fit all">⊙</button>
+  </div>
+</div>
+
+<!-- ── Status bar ── -->
+<div id="statusbar">
+  <div class="s-item"><span class="dot loading" id="conn-dot"></span><span id="conn-text">Conectando…</span></div>
+  <div class="s-item" id="fetch-time"></div>
+  <div class="s-item" id="ch-host"></div>
+</div>
+
+<!-- ── Config modal ── -->
+<div id="config-modal" class="modal-backdrop">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Configuración de conexión</h3>
+      <button class="modal-close" onclick="closeConfig()">×</button>
+    </div>
+    <div class="config-body">
+      <div class="form-group">
+        <label>Host</label>
+        <input id="cfg-host" type="text" placeholder="localhost" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Puerto</label>
+          <input id="cfg-port" type="number" placeholder="8123" min="1" max="65535">
+        </div>
+        <div class="form-group">
+          <label>Usuario</label>
+          <input id="cfg-user" type="text" placeholder="default" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input id="cfg-pass" type="password" placeholder="(vacío si no tiene)" autocomplete="current-password">
+      </div>
+    </div>
+    <div class="config-footer">
+      <button class="tb-btn" onclick="testConnection()">Probar</button>
+      <span class="test-result" id="test-result"></span>
+      <div class="spacer"></div>
+      <button class="tb-btn" onclick="restoreDefaults()">Restaurar defaults</button>
+      <button class="tb-btn primary" onclick="applyConfig()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DDL modal ── -->
+<div id="ddl-modal" class="modal-backdrop">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="ddl-title">CREATE TABLE</h3>
+      <button class="modal-close" onclick="closeDDL()">×</button>
+    </div>
+    <div class="ddl-pre" id="ddl-content"></div>
+  </div>
+</div>
+
+<!-- ── Color picker popup ── -->
+<div id="color-picker-popup">
+  <div class="cp-title">Color de tarjeta</div>
+  <div class="cp-grid" id="cp-grid"></div>
+</div>
+
+<script>
+// ── Pastel colors ─────────────────────────────────────────────────────────────
+const PASTEL_COLORS = [
+  { name: 'Sin color',    value: '' },
+  { name: 'Rosa',         value: '#ffc2d4' },
+  { name: 'Salmón',       value: '#ffb3a7' },
+  { name: 'Melocotón',    value: '#ffd4a8' },
+  { name: 'Albaricoque',  value: '#ffc87a' },
+  { name: 'Limón',        value: '#fff0a0' },
+  { name: 'Vainilla',     value: '#faeebb' },
+  { name: 'Crema',        value: '#f8e8c0' },
+  { name: 'Pistacho',     value: '#c2e8c8' },
+  { name: 'Menta',        value: '#b7eecf' },
+  { name: 'Salvia',       value: '#a8d8b0' },
+  { name: 'Aguamarina',   value: '#90e0e8' },
+  { name: 'Cielo',        value: '#a8d8f8' },
+  { name: 'Celeste',      value: '#b8d8f8' },
+  { name: 'Azul pizarra', value: '#b8c8f8' },
+  { name: 'Lavanda',      value: '#d0b8fc' },
+  { name: 'Lila',         value: '#e8b8f8' },
+  { name: 'Malva',        value: '#f0b8d8' },
+  { name: 'Niebla',       value: '#c8d0e8' },
+  { name: 'Perla',        value: '#e8e0d8' },
+];
+
+// ── DOM refs (declared first — used by top-level event listeners below) ───────
+const canvas  = document.getElementById('canvas');
+const wrap    = document.getElementById('canvas-wrap');
+const overlay = document.getElementById('overlay');
+
+// ── LocalStorage keys ─────────────────────────────────────────────────────────
+const LS_CONFIG = 'chviz_config';
+const LS_DB     = 'chviz_db';
+const LS_LAYOUT = 'chviz_layout';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allTables      = [];
+let cardEls        = {};
+let vt             = { x: 0, y: 0, s: 1 };
+let isPanning      = false;
+let panStart       = {};
+let dragState      = null;
+let colorPickerCard = null; // card el currently targeted by color picker
+
+// ── LocalStorage helpers ──────────────────────────────────────────────────────
+function loadConnConfig() {
+  try { return JSON.parse(localStorage.getItem(LS_CONFIG)) || null; }
+  catch { return null; }
+}
+function saveConnConfig(cfg) {
+  localStorage.setItem(LS_CONFIG, JSON.stringify(cfg));
+}
+function clearConnConfig() {
+  localStorage.removeItem(LS_CONFIG);
+}
+
+function loadSavedDb() {
+  return localStorage.getItem(LS_DB) || '';
+}
+function saveDb(db) {
+  if (db) localStorage.setItem(LS_DB, db);
+  else     localStorage.removeItem(LS_DB);
+}
+
+function loadLayout() {
+  try { return JSON.parse(localStorage.getItem(LS_LAYOUT)) || {}; }
+  catch { return {}; }
+}
+function saveCardLayout(key, patch) {
+  const all = loadLayout();
+  all[key] = Object.assign(all[key] || {}, patch);
+  localStorage.setItem(LS_LAYOUT, JSON.stringify(all));
+}
+
+// ── Config helpers ────────────────────────────────────────────────────────────
+function connToParams(cfg) {
+  if (!cfg) return '';
+  const p = new URLSearchParams();
+  if (cfg.host)     p.set('host',     cfg.host);
+  if (cfg.port)     p.set('port',     String(cfg.port));
+  if (cfg.user)     p.set('user',     cfg.user);
+  if (cfg.password !== undefined) p.set('password', cfg.password);
+  return p.toString();
+}
+
+function buildUrl(endpoint, extra) {
+  const cfg    = loadConnConfig();
+  const params = new URLSearchParams(connToParams(cfg));
+  if (extra) Object.entries(extra).forEach(([k,v]) => params.set(k, v));
+  const qs = params.toString();
+  return qs ? `${endpoint}?${qs}` : endpoint;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', initApp);
+
+async function initApp() {
+  initColorPicker();
+  await loadDatabases();
+}
+
+// ── Databases ─────────────────────────────────────────────────────────────────
+async function loadDatabases() {
+  showLoading('Cargando bases de datos…');
+  try {
+    const res  = await fetch(buildUrl('/api/databases'));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error desconocido');
+
+    populateDbSelect(data.databases);
+    const savedDb = loadSavedDb();
+    const select  = document.getElementById('db-select');
+
+    if (savedDb && data.databases.includes(savedDb)) {
+      select.value = savedDb;
+    } else if (data.databases.length > 0) {
+      select.value = data.databases[0];
+    }
+
+    const db = select.value;
+    if (db) {
+      await loadSchema(db);
+    } else {
+      showEmpty('Selecciona una base de datos para ver el esquema.');
+    }
+  } catch (err) {
+    showError(err.message);
+    setConn(false);
+  }
+}
+
+function populateDbSelect(dbs) {
+  const select = document.getElementById('db-select');
+  select.innerHTML = '';
+  dbs.forEach(db => {
+    const opt = document.createElement('option');
+    opt.value       = db;
+    opt.textContent = db;
+    select.appendChild(opt);
+  });
+  if (dbs.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = '— Sin bases de datos —';
+    select.appendChild(opt);
+  }
+}
+
+async function onDbChange() {
+  const db = document.getElementById('db-select').value;
+  if (!db) return;
+  saveDb(db);
+  await loadSchema(db);
+}
+
+// ── Schema ────────────────────────────────────────────────────────────────────
+async function loadSchema(database) {
+  showLoading(`Cargando esquema de ${database}…`);
+  const t0 = Date.now();
+  try {
+    const res  = await fetch(buildUrl('/api/schema', { database }));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error desconocido');
+
+    const ms = Date.now() - t0;
+    allTables = data.tables;
+    hideOverlay();
+    renderAll(data);
+    setConn(true, database, ms);
+  } catch (err) {
+    showError(err.message);
+    setConn(false);
+  }
+}
+
+async function reloadSchema() {
+  const db = document.getElementById('db-select').value;
+  if (!db) { await loadDatabases(); return; }
+  await loadSchema(db);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderAll(data) {
+  canvas.innerHTML = '';
+  cardEls = {};
+
+  document.getElementById('st-tables').innerHTML = `<b>${data.tables.length}</b> tabla${data.tables.length !== 1 ? 's' : ''}`;
+  const totalFields = data.tables.reduce((a, t) => a + t.fields.length, 0);
+  document.getElementById('st-fields').innerHTML = `<b>${totalFields}</b> campos`;
+
+  const savedLayout = loadLayout();
+  const cols        = Math.max(1, Math.min(5, Math.ceil(Math.sqrt(data.tables.length))));
+  const GAP_X = 24, GAP_Y = 24, PAD = 32, W = 268;
+
+  data.tables.forEach((tbl, i) => {
+    const key     = tbl.db + '.' + tbl.name;
+    const saved   = savedLayout[key];
+    const col     = i % cols;
+    const row     = Math.floor(i / cols);
+    const defX    = PAD + col * (W + GAP_X);
+    const defY    = PAD + row * 320;
+    renderCard(tbl, saved ? saved.x : defX, saved ? saved.y : defY, saved ? saved.color : null);
+  });
+
+  // Only auto-layout cards without saved positions
+  const hasAnySaved = data.tables.some(t => !!savedLayout[t.db + '.' + t.name]);
+  if (!hasAnySaved) {
+    setTimeout(() => { autoLayout(); }, 50);
+  } else {
+    // Layout only unsaved cards
+    setTimeout(() => { autoLayoutUnsaved(savedLayout); }, 50);
+  }
+}
+
+function renderCard(tbl, x, y, color) {
+  const card = document.createElement('div');
+  card.className = 'table-card';
+  card.style.left = x + 'px';
+  card.style.top  = y + 'px';
+
+  const engineClass = getEngineClass(tbl.engine);
+  const engineLabel = abbreviateEngine(tbl.engine);
+  const isMV        = tbl.engine === 'MaterializedView' || (tbl.ddl || '').includes('MATERIALIZED VIEW');
+
+  let metaParts = [];
+  if (tbl.totalRows > 0) metaParts.push(fmtNum(tbl.totalRows) + ' rows');
+  if (tbl.totalBytes && tbl.totalBytes !== '0.00 B') metaParts.push(tbl.totalBytes);
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = `
+    <div class="card-title-row">
+      <div style="flex:1;min-width:0">
+        <div class="card-db">${esc(tbl.db)}</div>
+        <div class="card-name">${isMV ? '⟳ ' : ''}${esc(tbl.name)}</div>
+      </div>
+      <div class="card-badges">
+        <span class="engine-badge ${engineClass}">${esc(engineLabel)}</span>
+        <span class="color-dot-btn" title="Asignar color" data-card-key="${esc(tbl.db + '.' + tbl.name)}"></span>
+      </div>
+    </div>
+    ${metaParts.length ? `<div class="card-meta">${esc(metaParts.join(' · '))}</div>` : ''}
+  `;
+
+  if (color) applyCardColor(card, header, color);
+
+  // Color dot button
+  const colorBtn = header.querySelector('.color-dot-btn');
+  if (color) colorBtn.style.background = color;
+  colorBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    openColorPicker(card, colorBtn, tbl.db + '.' + tbl.name);
+  });
+
+  card.appendChild(header);
+  makeDraggable(card, header, tbl.db + '.' + tbl.name);
+
+  header.addEventListener('dblclick', e => { e.stopPropagation(); openDDL(tbl); });
+
+  const fieldList = document.createElement('div');
+  fieldList.className = 'field-list';
+
+  if (tbl.fields.length === 0) {
+    fieldList.innerHTML = `<div class="field-row" style="color:var(--text3)">Sin columnas</div>`;
+  } else {
+    tbl.fields.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      let iconClass = 'fk-none', titleAttr = '';
+      if (f.pk)         { iconClass = 'fk-pk';   titleAttr = 'PRIMARY KEY'; }
+      else if (f.sortingKey) { iconClass = 'fk-sort'; titleAttr = 'SORTING KEY'; }
+
+      let displayType = f.type;
+      if (f.nullable) displayType = displayType.replace(/^Nullable\(/, '').replace(/\)$/, '');
+      if (displayType.length > 22) displayType = displayType.slice(0, 20) + '…';
+
+      row.innerHTML = `
+        <span class="fk-icon ${iconClass}" title="${titleAttr}"></span>
+        <span class="f-name" title="${esc(f.name)}${f.comment ? ' — ' + esc(f.comment) : ''}">${esc(f.name)}</span>
+        ${f.nullable ? '<span class="f-null">NULL</span>' : ''}
+        <span class="f-type" title="${esc(f.type)}">${esc(displayType)}</span>
+      `;
+      fieldList.appendChild(row);
+    });
+  }
+  card.appendChild(fieldList);
+
+  const footer = document.createElement('div');
+  footer.className = 'card-footer';
+  footer.innerHTML = `
+    <span>${tbl.fields.length} campo${tbl.fields.length !== 1 ? 's' : ''}</span>
+    <span class="ddl-link" title="Ver DDL" onclick="openDDL(getTbl('${esc(tbl.db)}','${esc(tbl.name)}'))">DDL ↗</span>
+  `;
+  card.appendChild(footer);
+
+  canvas.appendChild(card);
+  cardEls[tbl.db + '.' + tbl.name] = card;
+}
+
+function applyCardColor(card, header, color) {
+  if (color) {
+    card.style.borderTopColor  = color;
+    card.style.borderTopWidth  = '3px';
+    header.style.backgroundColor = color + '30'; // ~19% opacity
+  } else {
+    card.style.borderTopColor  = '';
+    card.style.borderTopWidth  = '';
+    header.style.backgroundColor = '';
+  }
+}
+
+function getTbl(db, name) {
+  return allTables.find(t => t.db === db && t.name === name);
+}
+window.getTbl = getTbl;
+window.openDDL = function(tbl) { if (tbl) _openDDL(tbl); };
+
+// ── Color picker ──────────────────────────────────────────────────────────────
+function initColorPicker() {
+  const grid = document.getElementById('cp-grid');
+  PASTEL_COLORS.forEach(c => {
+    const swatch = document.createElement('div');
+    swatch.className = 'cp-swatch' + (c.value === '' ? ' cp-none' : '');
+    swatch.title     = c.name;
+    if (c.value) swatch.style.background = c.value;
+    if (!c.value) swatch.textContent = '×';
+    swatch.addEventListener('click', () => selectColor(c.value));
+    grid.appendChild(swatch);
+  });
+
+  document.addEventListener('click', e => {
+    const popup = document.getElementById('color-picker-popup');
+    if (popup.style.display !== 'none' && !popup.contains(e.target) && !e.target.classList.contains('color-dot-btn')) {
+      closeColorPicker();
+    }
+  });
+}
+
+function openColorPicker(card, btnEl, cardKey) {
+  colorPickerCard = { card, cardKey };
+  const popup = document.getElementById('color-picker-popup');
+
+  // Highlight active swatch
+  const savedLayout = loadLayout();
+  const currentColor = (savedLayout[cardKey] || {}).color || '';
+  popup.querySelectorAll('.cp-swatch').forEach((s, i) => {
+    s.classList.toggle('active', PASTEL_COLORS[i].value === currentColor);
+  });
+
+  const rect = btnEl.getBoundingClientRect();
+  popup.style.display = 'block';
+  const pw = popup.offsetWidth, ph = popup.offsetHeight;
+  let left = rect.left;
+  let top  = rect.bottom + 6;
+  if (left + pw > window.innerWidth  - 8) left = window.innerWidth  - pw - 8;
+  if (top  + ph > window.innerHeight - 8) top  = rect.top - ph - 6;
+  popup.style.left = left + 'px';
+  popup.style.top  = top  + 'px';
+}
+
+function closeColorPicker() {
+  document.getElementById('color-picker-popup').style.display = 'none';
+  colorPickerCard = null;
+}
+
+function selectColor(colorValue) {
+  if (!colorPickerCard) return;
+  const { card, cardKey } = colorPickerCard;
+
+  saveCardLayout(cardKey, { color: colorValue });
+
+  const header  = card.querySelector('.card-header');
+  const colorBtn = header.querySelector('.color-dot-btn');
+
+  applyCardColor(card, header, colorValue);
+  colorBtn.style.background = colorValue || '';
+
+  closeColorPicker();
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+function autoLayout() {
+  const GAP_X = 24, GAP_Y = 24, PAD = 32, W = 268;
+  const cols = Math.max(1, Math.min(5, Math.ceil(Math.sqrt(allTables.length))));
+
+  const heights = allTables.map(tbl => {
+    const c = cardEls[tbl.db + '.' + tbl.name];
+    return c ? c.offsetHeight : 200;
+  });
+
+  const rowCount = Math.ceil(allTables.length / cols);
+  const rowH = new Array(rowCount).fill(0);
+  allTables.forEach((_, i) => { const r = Math.floor(i / cols); if (heights[i] > rowH[r]) rowH[r] = heights[i]; });
+
+  const rowY = [PAD];
+  for (let r = 1; r < rowH.length; r++) rowY.push(rowY[r-1] + rowH[r-1] + GAP_Y);
+
+  allTables.forEach((tbl, i) => {
+    const card = cardEls[tbl.db + '.' + tbl.name];
+    if (!card) return;
+    const col = i % cols, row = Math.floor(i / cols);
+    card.style.left = (PAD + col * (W + GAP_X)) + 'px';
+    card.style.top  = rowY[row] + 'px';
+  });
+
+  setTimeout(fitAll, 60);
+}
+
+function doAutoLayout() {
+  autoLayout();
+}
+
+function autoLayoutUnsaved(savedLayout) {
+  const GAP_X = 24, GAP_Y = 24, PAD = 32, W = 268;
+  const unsaved = allTables.filter(t => !savedLayout[t.db + '.' + t.name]);
+  if (unsaved.length === 0) { setTimeout(fitAll, 60); return; }
+
+  // Find bottom-most saved card
+  let maxBottom = PAD;
+  allTables.forEach(tbl => {
+    const key = tbl.db + '.' + tbl.name;
+    if (savedLayout[key]) {
+      const card = cardEls[key];
+      if (card) maxBottom = Math.max(maxBottom, savedLayout[key].y + card.offsetHeight);
+    }
+  });
+  const startY = maxBottom + GAP_Y;
+  const cols   = Math.max(1, Math.min(5, Math.ceil(Math.sqrt(unsaved.length))));
+
+  unsaved.forEach((tbl, i) => {
+    const card = cardEls[tbl.db + '.' + tbl.name];
+    if (!card) return;
+    const col = i % cols, row = Math.floor(i / cols);
+    card.style.left = (PAD + col * (W + GAP_X)) + 'px';
+    card.style.top  = (startY + row * 320) + 'px';
+  });
+
+  setTimeout(fitAll, 60);
+}
+
+function fitAll() {
+  if (allTables.length === 0) return;
+  let maxX = 0, maxY = 0;
+  allTables.forEach(tbl => {
+    const card = cardEls[tbl.db + '.' + tbl.name];
+    if (!card) return;
+    maxX = Math.max(maxX, parseInt(card.style.left) + card.offsetWidth);
+    maxY = Math.max(maxY, parseInt(card.style.top)  + card.offsetHeight);
+  });
+
+  const wW = wrap.offsetWidth, wH = wrap.offsetHeight;
+  const s = Math.min((wW - 48) / maxX, (wH - 48) / maxY, 1.2);
+  vt = { x: (wW - maxX * s) / 2, y: 16, s };
+  applyT();
+}
+
+function resetView() { vt = { x: 0, y: 0, s: 1 }; applyT(); }
+
+function zoom(f) {
+  const cx = wrap.offsetWidth / 2, cy = wrap.offsetHeight / 2;
+  const ns = Math.min(4, Math.max(0.15, vt.s * f));
+  vt.x = cx - (cx - vt.x) * (ns / vt.s);
+  vt.y = cy - (cy - vt.y) * (ns / vt.s);
+  vt.s = ns;
+  applyT();
+}
+
+function applyT() {
+  canvas.style.transform = `translate(${vt.x}px,${vt.y}px) scale(${vt.s})`;
+}
+
+// ── Drag ──────────────────────────────────────────────────────────────────────
+function makeDraggable(card, handle, cardKey) {
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    card.classList.add('dragging');
+    dragState = {
+      card, cardKey,
+      startMX: e.clientX, startMY: e.clientY,
+      startCX: parseInt(card.style.left) || 0,
+      startCY: parseInt(card.style.top)  || 0,
+    };
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (dragState) {
+    const dx = (e.clientX - dragState.startMX) / vt.s;
+    const dy = (e.clientY - dragState.startMY) / vt.s;
+    dragState.card.style.left = Math.max(0, dragState.startCX + dx) + 'px';
+    dragState.card.style.top  = Math.max(0, dragState.startCY + dy) + 'px';
+  } else if (isPanning) {
+    vt.x = panStart.tx + (e.clientX - panStart.x);
+    vt.y = panStart.ty + (e.clientY - panStart.y);
+    applyT();
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (dragState) {
+    dragState.card.classList.remove('dragging');
+    // Save position to localStorage
+    const x = parseInt(dragState.card.style.left) || 0;
+    const y = parseInt(dragState.card.style.top)  || 0;
+    saveCardLayout(dragState.cardKey, { x, y });
+    dragState = null;
+  }
+  if (isPanning) { isPanning = false; wrap.classList.remove('panning'); }
+});
+
+wrap.addEventListener('mousedown', e => {
+  if (e.button !== 0 || dragState) return;
+  isPanning = true;
+  wrap.classList.add('panning');
+  panStart = { x: e.clientX, y: e.clientY, tx: vt.x, ty: vt.y };
+});
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f    = e.deltaY < 0 ? 1.1 : 0.91;
+  const rect = wrap.getBoundingClientRect();
+  const mx   = e.clientX - rect.left, my = e.clientY - rect.top;
+  const ns   = Math.min(4, Math.max(0.15, vt.s * f));
+  vt.x = mx - (mx - vt.x) * (ns / vt.s);
+  vt.y = my - (my - vt.y) * (ns / vt.s);
+  vt.s = ns;
+  applyT();
+}, { passive: false });
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function filterTables(q) {
+  const lq = q.toLowerCase().trim();
+  allTables.forEach(tbl => {
+    const card = cardEls[tbl.db + '.' + tbl.name];
+    if (!card) return;
+    const match = !lq ||
+      tbl.name.toLowerCase().includes(lq) ||
+      tbl.db.toLowerCase().includes(lq) ||
+      (tbl.engine || '').toLowerCase().includes(lq) ||
+      tbl.fields.some(f => f.name.toLowerCase().includes(lq) || f.type.toLowerCase().includes(lq));
+    card.classList.toggle('faded', !match);
+    card.style.pointerEvents = match ? '' : 'none';
+  });
+}
+
+// ── Config modal ──────────────────────────────────────────────────────────────
+async function openConfig() {
+  const saved = loadConnConfig();
+  if (saved) {
+    document.getElementById('cfg-host').value = saved.host     || '';
+    document.getElementById('cfg-port').value = saved.port     || '';
+    document.getElementById('cfg-user').value = saved.user     || '';
+    document.getElementById('cfg-pass').value = saved.password || '';
+  } else {
+    // Fetch server defaults
+    try {
+      const res  = await fetch('/api/config');
+      const data = await res.json();
+      document.getElementById('cfg-host').value = data.host || '';
+      document.getElementById('cfg-port').value = data.port || '';
+      document.getElementById('cfg-user').value = data.user || '';
+      document.getElementById('cfg-pass').value = '';
+    } catch {
+      document.getElementById('cfg-host').value = 'localhost';
+      document.getElementById('cfg-port').value = '8123';
+      document.getElementById('cfg-user').value = 'default';
+      document.getElementById('cfg-pass').value = '';
+    }
+  }
+  document.getElementById('test-result').textContent = '';
+  document.getElementById('config-modal').classList.add('open');
+}
+
+function closeConfig() {
+  document.getElementById('config-modal').classList.remove('open');
+}
+
+function getFormConfig() {
+  return {
+    host:     document.getElementById('cfg-host').value.trim(),
+    port:     parseInt(document.getElementById('cfg-port').value) || 8123,
+    user:     document.getElementById('cfg-user').value.trim(),
+    password: document.getElementById('cfg-pass').value,
+  };
+}
+
+async function testConnection() {
+  const resultEl = document.getElementById('test-result');
+  resultEl.textContent = 'Probando…';
+  resultEl.className   = 'test-result';
+  const cfg = getFormConfig();
+  try {
+    const params = new URLSearchParams(cfg).toString();
+    const res    = await fetch(`/api/health?${params}`);
+    const data   = await res.json();
+    if (data.ok) {
+      resultEl.textContent = `✓ OK — ${data.clickhouse}`;
+      resultEl.className   = 'test-result ok';
+    } else {
+      resultEl.textContent = `✗ ${data.error}`;
+      resultEl.className   = 'test-result err';
+    }
+  } catch (err) {
+    resultEl.textContent = `✗ ${err.message}`;
+    resultEl.className   = 'test-result err';
+  }
+}
+
+async function applyConfig() {
+  const cfg = getFormConfig();
+  saveConnConfig(cfg);
+  closeConfig();
+  await loadDatabases();
+}
+
+async function restoreDefaults() {
+  clearConnConfig();
+  closeConfig();
+  await loadDatabases();
+}
+
+document.getElementById('config-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('config-modal')) closeConfig();
+});
+
+// ── DDL modal ─────────────────────────────────────────────────────────────────
+function _openDDL(tbl) {
+  document.getElementById('ddl-title').textContent   = tbl.db + '.' + tbl.name;
+  document.getElementById('ddl-content').innerHTML   = highlightSQL(tbl.ddl || '-- DDL no disponible');
+  document.getElementById('ddl-modal').classList.add('open');
+}
+function closeDDL() { document.getElementById('ddl-modal').classList.remove('open'); }
+document.getElementById('ddl-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('ddl-modal')) closeDDL();
+});
+
+function highlightSQL(sql) {
+  const keywords = /\b(CREATE|TABLE|VIEW|MATERIALIZED|ENGINE|ORDER\s+BY|PARTITION\s+BY|PRIMARY\s+KEY|SETTINGS|TTL|DEFAULT|ALIAS|CODEC|IF\s+NOT\s+EXISTS|SELECT|FROM|WHERE|AS|ON|WITH)\b/gi;
+  const types    = /\b(UInt8|UInt16|UInt32|UInt64|UInt128|UInt256|Int8|Int16|Int32|Int64|Int128|Int256|Float32|Float64|Decimal|String|FixedString|UUID|Date|Date32|DateTime|DateTime64|Bool|Array|Tuple|Map|Nullable|LowCardinality|IPv4|IPv6|Enum8|Enum16|AggregateFunction|SimpleAggregateFunction)\b/g;
+  const comments = /(--[^\n]*)/g;
+  const strings  = /('(?:[^'\\]|\\.)*')/g;
+
+  return sql
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(strings,  m => `<span class="st">${m}</span>`)
+    .replace(comments, m => `<span class="cm">${m}</span>`)
+    .replace(keywords, m => `<span class="kw">${m}</span>`)
+    .replace(types,    m => `<span class="tp">${m}</span>`);
+}
+
+// ── Engine helpers ─────────────────────────────────────────────────────────────
+function getEngineClass(e) {
+  if (!e) return 'e-other';
+  const l = e.toLowerCase();
+  if (l.includes('mergetree')) return 'e-mt';
+  if (l.includes('distributed')) return 'e-dist';
+  if (l.includes('log')) return 'e-log';
+  if (l.includes('view')) return 'e-view';
+  if (l.includes('memory') || l.includes('set') || l.includes('join')) return 'e-mem';
+  if (l.includes('null')) return 'e-null';
+  return 'e-other';
+}
+
+function abbreviateEngine(e) {
+  if (!e) return '?';
+  const m = {
+    MergeTree:'MT', ReplicatedMergeTree:'RMT', ReplacingMergeTree:'ReplMT',
+    AggregatingMergeTree:'AggMT', SummingMergeTree:'SumMT', CollapsingMergeTree:'CMT',
+    VersionedCollapsingMergeTree:'VCMT', GraphiteMergeTree:'GMerge',
+    Distributed:'Dist', MaterializedView:'MatView', View:'View',
+    Log:'Log', TinyLog:'TinyLog', StripeLog:'StripLog',
+    Memory:'Mem', Set:'Set', Join:'Join', Null:'Null', Buffer:'Buffer',
+    File:'File', URL:'URL', Kafka:'Kafka', MySQL:'MySQL',
+    PostgreSQL:'PG', S3:'S3', HDFS:'HDFS', Dictionary:'Dict',
+  };
+  return m[e] || (e.length > 8 ? e.slice(0,7)+'…' : e);
+}
+
+function fmtNum(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function downloadDDL() {
+  const db = document.getElementById('db-select').value;
+  if (!allTables.length || !db) return;
+
+  const sep = '-'.repeat(80);
+  const chunks = allTables.map(t => {
+    const header = `-- ${sep}\n-- ${t.db}.${t.name}  [${t.engine || '?'}]\n-- ${sep}`;
+    return header + '\n\n' + (t.ddl || `-- DDL no disponible para ${t.name}`) + ';';
+  });
+
+  const header =
+    `-- ClickHouse Schema Dump\n` +
+    `-- Database: ${db}\n` +
+    `-- Generated: ${new Date().toISOString()}\n` +
+    `-- Tables: ${allTables.length}\n` +
+    `-- ${'='.repeat(77)}\n\n`;
+
+  const sql  = header + chunks.join('\n\n\n');
+  const blob = new Blob([sql], { type: 'text/plain; charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `${db}_schema.sql`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+function setConn(ok, db, ms) {
+  const dot = document.getElementById('conn-dot');
+  const txt = document.getElementById('conn-text');
+  dot.className   = 'dot' + (ok ? '' : ' err');
+  txt.textContent = ok ? 'Conectado' : 'Error de conexión';
+  if (ok) {
+    document.getElementById('fetch-time').textContent = ms ? `${ms}ms` : '';
+    document.getElementById('ch-host').textContent    = db || '';
+  }
+}
+
+function showLoading(msg) {
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `<div class="spinner"></div><div class="overlay-text">${esc(msg)}</div>`;
+}
+
+function hideOverlay() {
+  overlay.style.display = 'none';
+  document.getElementById('btn-download-ddl').disabled = allTables.length === 0;
+}
+
+function showError(msg) {
+  document.getElementById('btn-download-ddl').disabled = true;
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <div class="err-box">
+      <h3>No se pudo conectar a ClickHouse</h3>
+      <p>${esc(msg)}</p>
+      <code>Comprueba la conexión o ajusta los parámetros en ⚙ Conexión.</code>
+      <br>
+      <button class="tb-btn primary" onclick="reloadSchema()" style="margin-top:12px">Reintentar</button>
+    </div>
+  `;
+}
+
+function showEmpty(msg) {
+  document.getElementById('btn-download-ddl').disabled = true;
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <div class="empty-state">
+      <h3>Base de datos no seleccionada</h3>
+      <p>${esc(msg)}</p>
+    </div>
+  `;
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDDL(); closeColorPicker(); closeConfig(); }
+  if ((e.key === '=' || e.key === '+') && !e.target.matches('input,textarea,select')) zoom(1.2);
+  if (e.key === '-'                    && !e.target.matches('input,textarea,select')) zoom(0.83);
+  if (e.key === '0'                    && !e.target.matches('input,textarea,select')) fitAll();
+  if ((e.key === 'f' || e.key === 'F') && !e.target.matches('input,textarea,select')) document.getElementById('search').focus();
+});
+</script>
+</body>
+</html>

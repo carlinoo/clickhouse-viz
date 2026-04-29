@@ -1,0 +1,12 @@
+{
+  "name": "clickhouse-schema-viz",
+  "version": "1.0.0",
+  "description": "ClickHouse schema visualizer — sin dependencias externas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["clickhouse", "schema", "visualizer"],
+  "license": "MIT"
+}

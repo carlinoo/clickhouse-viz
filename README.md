@@ -1,128 +1,104 @@
-# ClickHouse Schema Visualizer
+# ClickHouse Visualizer
 
-ClickHouse schema visualizer. **No npm dependencies**, pure Node.js.
+A lightweight, zero-dependency ClickHouse schema visualizer. Runs as a single Docker container — no database setup, no external services.
 
-## Requirements
-
-- Node.js 18+ (uses the native HTTP client)
-- ClickHouse running with the HTTP interface enabled (port 8123 by default)
-
-## Installation
+## Quick start
 
 ```bash
-# 1. Copy the files to your VM (or clone the repo)
-scp -r clickhouse-viz/ your-vm:/opt/clickhouse-viz/
-
-# 2. Enter the directory
-cd /opt/clickhouse-viz
-
-# 3. Start (with default config: localhost:8123, user=default, no password)
-node server.js
+docker run -d \
+  --name ch-viz \
+  --restart unless-stopped \
+  --network host \
+  -e CLICKHOUSE_HOST=localhost \
+  -e CLICKHOUSE_PORT=8123 \
+  -e CLICKHOUSE_USER=default \
+  -e CLICKHOUSE_PASSWORD="" \
+  carlino/clickhouse-viz:latest
 ```
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:63721` in your browser.
+
+> **Note:** `--network host` is needed when ClickHouse runs on the same machine. Remove it if connecting to a remote host.
 
 ---
 
 ## Configuration
 
-Everything via environment variables, no code changes needed:
+All configuration is done via environment variables — no config files needed.
 
-| Variable              | Default       | Description                              |
-|-----------------------|---------------|------------------------------------------|
-| `CLICKHOUSE_HOST`     | `localhost`   | ClickHouse host                          |
-| `CLICKHOUSE_PORT`     | `8123`        | ClickHouse HTTP port                     |
-| `CLICKHOUSE_USER`     | `default`     | User                                     |
-| `CLICKHOUSE_PASSWORD` | `` (empty)    | Password                                 |
-| `CLICKHOUSE_DATABASE` | `` (empty)    | Specific database (empty = all)          |
-| `CLICKHOUSE_HTTPS`    | `false`       | Use HTTPS instead of HTTP                |
-| `PORT`                | `3000`        | Web server port                          |
+| Variable              | Default     | Description                             |
+|-----------------------|-------------|-----------------------------------------|
+| `CLICKHOUSE_HOST`     | `localhost` | ClickHouse hostname or IP               |
+| `CLICKHOUSE_PORT`     | `8123`      | ClickHouse HTTP interface port          |
+| `CLICKHOUSE_USER`     | `default`   | ClickHouse user                         |
+| `CLICKHOUSE_PASSWORD` | *(empty)*   | ClickHouse password                     |
+| `CLICKHOUSE_DATABASE` | *(empty)*   | Restrict to a single database           |
+| `CLICKHOUSE_HTTPS`    | `false`     | Use HTTPS instead of HTTP               |
+| `PORT`                | `63721`     | Port exposed by the web server          |
 
 ### Examples
 
 ```bash
-# With password
-CLICKHOUSE_PASSWORD=my_password node server.js
+# Remote ClickHouse with auth
+docker run -d --name ch-viz -p 63721:63721 \
+  -e CLICKHOUSE_HOST=192.168.1.50 \
+  -e CLICKHOUSE_USER=admin \
+  -e CLICKHOUSE_PASSWORD=secret \
+  carlino/clickhouse-viz:latest
 
 # Single database
-CLICKHOUSE_DATABASE=my_db node server.js
-
-# ClickHouse on another machine
-CLICKHOUSE_HOST=192.168.1.50 CLICKHOUSE_PORT=8123 node server.js
-
-# All together
-CLICKHOUSE_HOST=192.168.1.50 CLICKHOUSE_USER=admin CLICKHOUSE_PASSWORD=pass PORT=8080 node server.js
-```
-
----
-
-## Run as a service (systemd)
-
-To start automatically with the VM:
-
-```bash
-sudo nano /etc/systemd/system/ch-viz.service
-```
-
-```ini
-[Unit]
-Description=ClickHouse Schema Visualizer
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/opt/clickhouse-viz
-ExecStart=/usr/bin/node server.js
-Environment=CLICKHOUSE_HOST=localhost
-Environment=CLICKHOUSE_PORT=8123
-Environment=CLICKHOUSE_USER=default
-Environment=CLICKHOUSE_PASSWORD=
-Environment=PORT=3000
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ch-viz
-sudo systemctl start ch-viz
-sudo systemctl status ch-viz
+docker run -d --name ch-viz -p 63721:63721 \
+  -e CLICKHOUSE_HOST=my-ch-host \
+  -e CLICKHOUSE_DATABASE=my_db \
+  carlino/clickhouse-viz:latest
 ```
 
 ---
 
 ## Features
 
-- **Auto-load** schema on startup
-- **↻ Reload button** to refresh without restarting the server
-- **Database filter** (dropdown in the toolbar)
-- **Search** by table name, field, or type
-- **Drag & drop** table cards
+- **Schema overview** — all databases, tables, and columns at a glance
+- **Drag & drop** table cards freely on the canvas
+- **Search** by table name, column name, or type
+- **Database filter** — dropdown to focus on one database
+- **View DDL** — double-click a card header or click "DDL ↗"
+- **Key columns** — orange dot marks PRIMARY / SORTING KEY columns
 - **Zoom** with mouse wheel or +/− buttons
-- **Fit all** to fit all tables on screen (key `0`)
-- **View DDL** by double-clicking the card header or clicking "DDL ↗"
-- **Key columns**: orange dot = PRIMARY/SORTING KEY
+- **Fit all** to center everything on screen
+- **Reload** button to refresh the schema without restarting
 
 ### Keyboard shortcuts
 
-| Key   | Action            |
-|-------|-------------------|
-| `+/-` | Zoom in/out       |
-| `0`   | Fit all           |
-| `f`   | Focus search      |
-| `Esc` | Close DDL modal   |
+| Key   | Action          |
+|-------|-----------------|
+| `+/-` | Zoom in/out     |
+| `0`   | Fit all         |
+| `f`   | Focus search    |
+| `Esc` | Close DDL modal |
 
 ---
 
-## API endpoints
+## API
 
-The server also exposes:
+The server exposes two endpoints for programmatic access:
 
-- `GET /api/schema` — JSON with all tables and columns
-- `GET /api/health` — ClickHouse connection status
+| Endpoint       | Description                          |
+|----------------|--------------------------------------|
+| `GET /api/schema` | Full schema as JSON (tables + columns) |
+| `GET /api/health` | ClickHouse connection health check  |
 
-Useful if you want to integrate it with other tools.
+---
+
+## Run without Docker
+
+Requires Node.js 18+ (uses the built-in HTTP client — no `npm install` needed).
+
+```bash
+CLICKHOUSE_HOST=localhost node server.js
+```
+
+---
+
+## License
+
+MIT

@@ -1044,13 +1044,18 @@ wrap.addEventListener('mousedown', e => {
 
 wrap.addEventListener('wheel', e => {
   e.preventDefault();
-  const f    = e.deltaY < 0 ? 1.1 : 0.91;
-  const rect = wrap.getBoundingClientRect();
-  const mx   = e.clientX - rect.left, my = e.clientY - rect.top;
-  const ns   = Math.min(4, Math.max(0.15, vt.s * f));
-  vt.x = mx - (mx - vt.x) * (ns / vt.s);
-  vt.y = my - (my - vt.y) * (ns / vt.s);
-  vt.s = ns;
+  if (e.ctrlKey || e.metaKey) {
+    const f    = e.deltaY < 0 ? 1.1 : 0.91;
+    const rect = wrap.getBoundingClientRect();
+    const mx   = e.clientX - rect.left, my = e.clientY - rect.top;
+    const ns   = Math.min(4, Math.max(0.15, vt.s * f));
+    vt.x = mx - (mx - vt.x) * (ns / vt.s);
+    vt.y = my - (my - vt.y) * (ns / vt.s);
+    vt.s = ns;
+  } else {
+    vt.x -= e.deltaX;
+    vt.y -= e.deltaY;
+  }
   applyT();
 }, { passive: false });
 
